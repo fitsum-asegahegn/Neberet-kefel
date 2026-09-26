@@ -5,6 +5,7 @@
   const MODULES = {
     assets: {
       store: 'assets', navKey: 'nav_assets', titleKey: 'asset_registry',
+      importMatchKeys: ['code'],
       fields: [
         { key: 'code', labelKey: 'asset_code', type: 'text' },
         { key: 'name', labelKey: 'asset_name', type: 'text', required: true },
@@ -20,6 +21,7 @@
     },
     income: {
       store: 'income', navKey: 'nav_finance', titleKey: 'income',
+      importMatchKeys: ['date', 'source', 'amount'],
       fields: [
         { key: 'date', labelKey: 'date', type: 'date', required: true },
         { key: 'source', labelKey: 'income_source', type: 'select', options: [['holiday', 'income_source_holiday'], ['subunit', 'income_source_subunit'], ['development', 'income_source_development'], ['other', 'income_source_other']] },
@@ -34,6 +36,7 @@
     },
     expenses: {
       store: 'expenses', navKey: 'nav_finance', titleKey: 'expense',
+      importMatchKeys: ['date', 'purpose', 'amount'],
       fields: [
         { key: 'date', labelKey: 'date', type: 'date', required: true },
         { key: 'purpose', labelKey: 'expense_purpose', type: 'text', required: true },
@@ -48,6 +51,7 @@
     },
     repairs: {
       store: 'repairs', navKey: 'nav_repairs', titleKey: 'nav_repairs',
+      importMatchKeys: ['itemName', 'dateReported'],
       fields: [
         { key: 'itemName', labelKey: 'repair_item', type: 'text', required: true },
         { key: 'description', labelKey: 'repair_desc', type: 'textarea' },
@@ -62,6 +66,7 @@
     },
     contributions: {
       store: 'contributions', navKey: 'nav_contrib', titleKey: 'nav_contrib',
+      importMatchKeys: ['period', 'leaderName'],
       fields: [
         { key: 'period', labelKey: 'contrib_period', type: 'text', required: true },
         { key: 'leaderName', labelKey: 'contrib_leader', type: 'text', required: true },
@@ -157,6 +162,7 @@
         type: 'search', placeholder: t('search'), value: searchTerm,
         oninput: (e) => { searchTerm = e.target.value; renderList(); },
       }),
+      el('button', { class: 'btn ghost', onclick: () => importModuleExcel(modKey) }, [t('import_excel')]),
       el('button', { class: 'btn ghost', onclick: () => exportModuleExcel(modKey) }, [t('export_excel')]),
     ]);
     const listHost = el('div', { class: 'list-host' });
@@ -281,6 +287,74 @@
     document.body.appendChild(overlay);
   }
 
+  function normalizeDateValue(raw) {
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    return '';
+  }
+
+  function coerceFieldValue(field, raw) {
+    if (raw === undefined || raw === null) return undefined;
+    if (field.type === 'checkbox') {
+      const s = String(raw).trim().toLowerCase();
+      return ['true', '1', 'yes', 'y', '✓', '✅', 'አዎ'].includes(s);
+    }
+    if (field.type === 'number') {
+      if (raw === '') return null;
+      const n = Number(raw);
+      return isNaN(n) ? null : n;
+    }
+    if (field.type === 'date') return normalizeDateValue(raw);
+    if (field.type === 'select') {
+      const s = String(raw).trim();
+      const opt = field.options.find(([val, labelKey]) => {
+        const entry = window.I18N.DICT[labelKey] || {};
+        return val === s || entry.am === s || entry.en === s;
+      });
+      return opt ? opt[0] : s;
+    }
+    return String(raw);
+  }
+
+  function importModuleExcel(modKey) {
+    const mod = MODULES[modKey];
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls,.csv';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const sheetRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const existing = await window.NKDB.getAll(mod.store);
+      let created = 0, updated = 0, skipped = 0;
+      for (const row of sheetRows) {
+        const record = {};
+        mod.fields.forEach((f) => {
+          const entry = window.I18N.DICT[f.labelKey] || {};
+          const raw = pick(row, [entry.am, entry.en, f.key].filter(Boolean));
+          const val = coerceFieldValue(f, raw);
+          if (val !== undefined) record[f.key] = val;
+        });
+        const hasContent = Object.values(record).some((v) => v !== '' && v != null && v !== false);
+        if (!hasContent) { skipped++; continue; }
+        const matchKeys = mod.importMatchKeys || [];
+        let match = null;
+        if (matchKeys.every((k) => record[k] !== undefined && record[k] !== '' && record[k] !== null)) {
+          match = existing.find((e) => matchKeys.every((k) => String(e[k]) === String(record[k])));
+        }
+        if (match) { record.id = match.id; updated++; } else { created++; }
+        const saved = await window.NKDB.put(mod.store, record);
+        if (!match) existing.push(saved);
+      }
+      alert(`${t('import_excel')}: +${created} / ~${updated}`);
+      render();
+    };
+    input.click();
+  }
+
   async function exportModuleExcel(modKey) {
     const mod = MODULES[modKey];
     const records = await window.NKDB.getAll(mod.store);
@@ -348,6 +422,7 @@
     ]);
     const toolbar = el('div', { class: 'toolbar' }, [
       el('input', { type: 'search', placeholder: t('search'), oninput: (e) => { searchTerm = e.target.value; renderList(); } }),
+      el('button', { class: 'btn ghost', onclick: () => importModuleExcel(modKey) }, [t('import_excel')]),
       el('button', { class: 'btn ghost', onclick: () => exportModuleExcel(modKey) }, [t('export_excel')]),
     ]);
     const listHost = el('div', { class: 'list-host' });

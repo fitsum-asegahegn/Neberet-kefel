@@ -49,6 +49,15 @@ records; skip it and it runs entirely offline/local, same as before.
   and cost.
 - **መዋጮ (Contributions)** — track leader contribution rounds: expected
   vs. paid, who collected it, when.
+- **Import/Export Excel on every module** — Assets, Income, Expenses,
+  Repairs, and Contributions each have their own ⬆ Import Excel / ⬇
+  Export Excel buttons (same pattern as the ዕቅድ tab). Import recognizes
+  either the Amharic or English column header for each field. Re-importing
+  updates existing rows instead of duplicating them, matched by a
+  sensible key per module: Assets by code, Income by date+source+amount,
+  Expenses by date+purpose+amount, Repairs by item+date reported,
+  Contributions by period+leader. Rows missing that key are always
+  added as new.
 - **ዕቅድ (Plan)** — the department's exact 14-item 2018 ዓ/ም plan (from
   `2018_የንብረት_ክፍል_እቅድ.docx`) is seeded automatically on first load.
   - Each item's due date is computed from its own `timing` text using

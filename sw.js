@@ -1,6 +1,6 @@
 /* sw.js — bump CACHE whenever you redeploy changed files so phones pick
  * up the update (old cache is dropped in activate). */
-const CACHE = 'neberet-kefel-v2';
+const CACHE = 'neberet-kefel-v3';
 const ASSETS = [
   './',
   './index.html',
