@@ -109,7 +109,7 @@
   // Find every Ethiopian month named in a free-text "timing" field.
   // Handles single months, space/comma lists, and "ከX እስከY" ranges.
   function extractMonths(text) {
-    if (!text) return [];
+    if (!text) return { months: [], isRange: false };
     const found = new Set();
     const tokens = tokenize(text);
     for (const tok of tokens) {
