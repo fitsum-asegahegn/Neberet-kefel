@@ -4,6 +4,6 @@
  * the RLS policies in supabase-schema.sql. NEVER put the service_role
  * key here. Leave both blank to run fully offline (no cloud sync). */
 window.NK_CONFIG = {
-  SUPABASE_URL: '',
+  SUPABASE_URL: 'https://onvflwcinztivrvlpugc.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udmZsd2Npbnp0aXZydmxwdWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MDkzNTQsImV4cCI6MjEwNTk4NTM1NH0._c_x1b00CDGeB-M89NQsajdhB4VDAq8wcJwzp5lvExE',
 };
