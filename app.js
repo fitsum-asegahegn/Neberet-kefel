@@ -374,12 +374,16 @@
     const wrap = el('div', { class: 'panel' });
     const income = await window.NKDB.getAll('income');
     const expenses = await window.NKDB.getAll('expenses');
-    const totalIncome = income.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const contributions = await window.NKDB.getAll('contributions');
+    const incomeOnly = income.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const contribTotal = contributions.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+    const totalIncome = incomeOnly + contribTotal;
     const totalExpense = expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const undeposited = income.filter((r) => !r.deposited).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
     wrap.appendChild(el('div', { class: 'stat-row' }, [
-      statCard('total_income', fmtMoney(totalIncome), 'good'),
+      statCard('total_income', fmtMoney(totalIncome), 'good',
+        `${t('income')} ${fmtMoney(incomeOnly)} + ${t('nav_contrib')} ${fmtMoney(contribTotal)}`),
       statCard('total_expense', fmtMoney(totalExpense), 'warn'),
       statCard('balance', fmtMoney(totalIncome - totalExpense), 'neutral'),
       statCard('undeposited_amount', fmtMoney(undeposited), undeposited > 0 ? 'danger' : 'good'),
@@ -475,11 +479,13 @@
     const origOpenForm = openForm;
   }
 
-  function statCard(labelKey, value, tone) {
-    return el('div', { class: 'stat-card ' + (tone || '') }, [
+  function statCard(labelKey, value, tone, sub) {
+    const children = [
       el('div', { class: 'stat-value' }, [value]),
       el('div', { class: 'stat-label' }, [t(labelKey)]),
-    ]);
+    ];
+    if (sub) children.push(el('div', { class: 'stat-sub' }, [sub]));
+    return el('div', { class: 'stat-card ' + (tone || '') }, children);
   }
 
   // ---------- dashboard ----------
@@ -556,7 +562,8 @@
         el('option', { value: '12' }, ['12 ' + t('report_period')]),
       ]);
       reportBar.appendChild(periodSel);
-      reportBar.appendChild(el('button', { class: 'btn primary', onclick: () => generateReport(Number(periodSel.value)) }, [t('generate_report')]));
+      reportBar.appendChild(el('button', { class: 'btn ghost', onclick: () => generateReport(Number(periodSel.value)) }, [t('generate_report')]));
+      reportBar.appendChild(el('button', { class: 'btn primary', onclick: () => generatePptxReport(Number(periodSel.value)) }, [t('generate_pptx')]));
     } else {
       reportBar.appendChild(el('p', { class: 'muted' }, [t('admin_only_note')]));
     }
@@ -712,29 +719,40 @@
     return undefined;
   }
 
-  // ---------- report generation (print view) ----------
-  async function generateReport(months) {
-    const [income, expenses, repairs, plan, assets] = await Promise.all([
+  // ---------- report generation ----------
+  async function gatherReportData(months) {
+    const [income, expenses, repairs, plan, assets, contributions] = await Promise.all([
       window.NKDB.getAll('income'), window.NKDB.getAll('expenses'),
       window.NKDB.getAll('repairs'), window.NKDB.getAll('planItems'), window.NKDB.getAll('assets'),
+      window.NKDB.getAll('contributions'),
     ]);
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - months);
     const inRange = (d) => d && new Date(d) >= cutoff;
     const periodIncome = income.filter((r) => inRange(r.date));
     const periodExpense = expenses.filter((r) => inRange(r.date));
-    const totalIncome = periodIncome.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const periodContrib = contributions.filter((r) => inRange(r.datePaid));
+    const contribTotal = periodContrib.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+    const incomeOnly = periodIncome.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const totalIncome = incomeOnly + contribTotal;
     const totalExpense = periodExpense.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const repairsDone = repairs.filter((r) => r.status === 'done' && inRange(r.resolvedDate)).length;
     const repairsPending = repairs.filter((r) => r.status !== 'done').length;
-
-    const win = window.open('', '_blank');
-    const lang = window.I18N.getLang();
-    const rows = plan.map((p) => {
+    const planRows = plan.slice().sort((a, b) => (a.no || 0) - (b.no || 0)).map((p) => {
       const doneInPeriod = (p.history || []).filter((h) => inRange(h.date)).length;
       const status = doneInPeriod > 0 ? t('plan_status_on_track') : t('plan_status_needs_attn');
-      return `<tr><td>${p.no}</td><td>${p.title}</td><td>${p.timing || ''}</td><td>${doneInPeriod}</td><td>${status}</td></tr>`;
-    }).join('');
+      return { no: p.no, title: p.title, timing: p.timing || '', doneInPeriod, status };
+    });
+    return { months, incomeOnly, contribTotal, totalIncome, totalExpense, assetsCount: assets.length, repairsDone, repairsPending, planRows };
+  }
+
+  async function generateReport(months) {
+    const d = await gatherReportData(months);
+    const win = window.open('', '_blank');
+    const lang = window.I18N.getLang();
+    const rows = d.planRows.map((p) =>
+      `<tr><td>${p.no}</td><td>${p.title}</td><td>${p.timing}</td><td>${p.doneInPeriod}</td><td>${p.status}</td></tr>`
+    ).join('');
 
     win.document.write(`
       <html lang="${lang}"><head><meta charset="utf-8"><title>${t('generate_report')}</title>
@@ -747,13 +765,13 @@
         .stats{display:flex;gap:16px;margin:16px 0;flex-wrap:wrap;}
         .stat{border:1px solid #ccc;padding:10px 16px;border-radius:6px;}
       </style></head><body>
-      <h1>${t('app_title')} — ${t('generate_report')} (${months} ${lang === 'en' ? 'months' : 'ወር'})</h1>
+      <h1>${t('app_title')} — ${t('generate_report')} (${d.months} ${lang === 'en' ? 'months' : 'ወር'})</h1>
       <p>${new Date().toLocaleDateString()} — ${window.EthCal.formatEC(window.EthCal.toEthiopian(new Date()), lang)}</p>
       <div class="stats">
-        <div class="stat"><strong>${t('total_income')}:</strong> ${fmtMoney(totalIncome)}</div>
-        <div class="stat"><strong>${t('total_expense')}:</strong> ${fmtMoney(totalExpense)}</div>
-        <div class="stat"><strong>${t('nav_assets')}:</strong> ${assets.length}</div>
-        <div class="stat"><strong>${t('pending_repairs')}:</strong> ${repairsPending} (${lang === 'en' ? 'done' : 'ተጠናቋል'}: ${repairsDone})</div>
+        <div class="stat"><strong>${t('total_income')}:</strong> ${fmtMoney(d.totalIncome)}<br><small>${t('income')} ${fmtMoney(d.incomeOnly)} + ${t('nav_contrib')} ${fmtMoney(d.contribTotal)}</small></div>
+        <div class="stat"><strong>${t('total_expense')}:</strong> ${fmtMoney(d.totalExpense)}</div>
+        <div class="stat"><strong>${t('nav_assets')}:</strong> ${d.assetsCount}</div>
+        <div class="stat"><strong>${t('pending_repairs')}:</strong> ${d.repairsPending} (${lang === 'en' ? 'done' : 'ተጠናቋል'}: ${d.repairsDone})</div>
       </div>
       <h2>${t('nav_plan')}</h2>
       <table><thead><tr><th>${t('plan_no')}</th><th>${t('plan_title')}</th><th>${t('plan_timing')}</th><th>#</th><th>${t('plan_status_on_track')}</th></tr></thead>
@@ -761,6 +779,95 @@
       <script>window.print()</script>
       </body></html>`);
     win.document.close();
+  }
+
+  // ---------- report generation (PowerPoint) ----------
+  const PPTX_FONT = 'Nyala'; // widely-available Ethiopic-script font (Windows); falls back gracefully elsewhere
+  const BRASS = 'C79A45';
+  const INK = '16241F';
+  const PARCHMENT = 'F2ECD9';
+
+  async function generatePptxReport(months) {
+    if (typeof PptxGenJS === 'undefined') {
+      alert('PowerPoint library failed to load — check your connection and reload the app once online, then try again.');
+      return;
+    }
+    const d = await gatherReportData(months);
+    const lang = window.I18N.getLang();
+    const monthsLabel = `${d.months} ${lang === 'en' ? 'months' : 'ወር'}`;
+    const todayStr = window.EthCal.formatEC(window.EthCal.toEthiopian(new Date()), lang) + ' / ' + new Date().toLocaleDateString();
+
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({ name: 'NK16x9', width: 10, height: 5.63 });
+    pptx.layout = 'NK16x9';
+
+    // ---- Slide 1: title ----
+    let slide = pptx.addSlide();
+    slide.background = { color: INK };
+    slide.addText(t('app_title'), {
+      x: 0.5, y: 1.7, w: 9, h: 1, fontFace: PPTX_FONT, fontSize: 30, bold: true, color: BRASS, align: 'center',
+    });
+    slide.addText(`${t('generate_report')} — ${monthsLabel}`, {
+      x: 0.5, y: 2.6, w: 9, h: 0.6, fontFace: PPTX_FONT, fontSize: 18, color: PARCHMENT, align: 'center',
+    });
+    slide.addText(todayStr, {
+      x: 0.5, y: 3.2, w: 9, h: 0.5, fontFace: PPTX_FONT, fontSize: 12, color: 'CFC6AC', align: 'center',
+    });
+
+    // ---- Slide 2: overview stats ----
+    slide = pptx.addSlide();
+    slide.background = { color: INK };
+    slide.addText(t('nav_dashboard'), { x: 0.4, y: 0.3, w: 9, h: 0.6, fontFace: PPTX_FONT, fontSize: 22, bold: true, color: BRASS });
+    const stats = [
+      [t('total_income'), fmtMoney(d.totalIncome), `${t('income')} ${fmtMoney(d.incomeOnly)} + ${t('nav_contrib')} ${fmtMoney(d.contribTotal)}`],
+      [t('total_expense'), fmtMoney(d.totalExpense), ''],
+      [t('balance'), fmtMoney(d.totalIncome - d.totalExpense), ''],
+      [t('nav_assets'), String(d.assetsCount), ''],
+      [t('pending_repairs'), String(d.repairsPending), `${t('repair_status_done')}: ${d.repairsDone}`],
+    ];
+    let sy = 1.15;
+    stats.forEach(([label, value, sub]) => {
+      slide.addText([
+        { text: label + ':  ', options: { fontFace: PPTX_FONT, fontSize: 14, color: PARCHMENT, bold: true } },
+        { text: value, options: { fontFace: PPTX_FONT, fontSize: 14, color: BRASS, bold: true } },
+      ], { x: 0.5, y: sy, w: 9, h: 0.4 });
+      if (sub) {
+        slide.addText(sub, { x: 0.7, y: sy + 0.32, w: 9, h: 0.3, fontFace: PPTX_FONT, fontSize: 10, color: 'CFC6AC' });
+        sy += 0.75;
+      } else {
+        sy += 0.55;
+      }
+    });
+
+    // ---- Plan status slides (chunked so rows stay readable) ----
+    const CHUNK = 8;
+    for (let i = 0; i < d.planRows.length; i += CHUNK) {
+      const chunk = d.planRows.slice(i, i + CHUNK);
+      slide = pptx.addSlide();
+      slide.background = { color: INK };
+      slide.addText(`${t('nav_plan')}${d.planRows.length > CHUNK ? ` (${i + 1}–${Math.min(i + CHUNK, d.planRows.length)})` : ''}`, {
+        x: 0.4, y: 0.25, w: 9, h: 0.5, fontFace: PPTX_FONT, fontSize: 20, bold: true, color: BRASS,
+      });
+      const header = [t('plan_no'), t('plan_title'), t('plan_timing'), '#', t('plan_status_on_track')]
+        .map((h) => ({ text: h, options: { bold: true, color: INK, fill: { color: BRASS }, fontFace: PPTX_FONT, fontSize: 10 } }));
+      const bodyRows = chunk.map((p) => [
+        { text: String(p.no || ''), options: { fontFace: PPTX_FONT, fontSize: 9, color: INK } },
+        { text: p.title, options: { fontFace: PPTX_FONT, fontSize: 9, color: INK } },
+        { text: p.timing, options: { fontFace: PPTX_FONT, fontSize: 9, color: INK } },
+        { text: String(p.doneInPeriod), options: { fontFace: PPTX_FONT, fontSize: 9, color: INK, align: 'center' } },
+        { text: p.status, options: { fontFace: PPTX_FONT, fontSize: 9, color: INK } },
+      ]);
+      slide.addTable([header, ...bodyRows], {
+        x: 0.4, y: 0.9, w: 9.2,
+        colW: [0.5, 3.6, 2.2, 0.6, 2.3],
+        fill: { color: PARCHMENT },
+        border: { type: 'solid', color: 'CFC6AC', pt: 0.5 },
+        autoPage: false,
+        valign: 'middle',
+      });
+    }
+
+    await pptx.writeFile({ fileName: `neberet-kefel-report-${months}m-${todayIso()}.pptx` });
   }
 
   // ---------- settings ----------

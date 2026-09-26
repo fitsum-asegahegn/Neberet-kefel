@@ -126,6 +126,7 @@
     plan_status_done: { am: 'ተጠናቋል', en: 'Done' },
     plan_status_manual: { am: 'በእጅ ክትትል', en: 'Manual tracking' },
     generate_report: { am: '🖨 ሪፖርት አመንጭ', en: '🖨 Generate report' },
+    generate_pptx: { am: '📊 PowerPoint አመንጭ', en: '📊 Generate PowerPoint' },
     report_period: { am: 'የሪፖርት ጊዜ', en: 'Report period' },
     admin_only_note: { am: 'ይህ ክፍል ለ አስተዳዳሪዎች ብቻ ነው', en: 'This section is admin-only' },
 

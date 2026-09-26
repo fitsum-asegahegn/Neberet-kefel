@@ -69,6 +69,7 @@
   .stat-card { flex: 1 1 140px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--ink-2); }
   .stat-card .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 600; }
   .stat-card .stat-label { font-size: 11.5px; color: var(--parchment-dim); margin-top: 2px; }
+  .stat-card .stat-sub { font-size: 10px; color: var(--parchment-dim); margin-top: 4px; opacity: 0.8; }
   .stat-card.good .stat-value { color: var(--good); }
   .stat-card.warn .stat-value { color: var(--warn); }
   .stat-card.danger .stat-value { color: var(--danger); }
@@ -177,6 +178,7 @@
 
   <!-- CDN libraries, cached by the service worker after first online load -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
   <script src="ethiopian-calendar.js"></script>

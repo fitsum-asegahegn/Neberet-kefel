@@ -43,8 +43,11 @@ records; skip it and it runs entirely offline/local, same as before.
 - **ገቢና ወጪ (Income & Expense)** — log every income source (holiday
   collections, sub-unit income, Development-dept transfers) with a
   deposited-to-bank flag, and every expense with its authorizer and a
-  reconciled flag. Dashboard totals and an undeposited-cash flag are
-  computed live, entirely offline.
+  reconciled flag. **Total Income automatically includes money marked
+  paid on the መዋጮ (Contributions) tab** — don't log that same money again
+  as a separate Income entry, it's already counted (the stat card shows
+  the ገቢ + መዋጮ breakdown). Dashboard totals and an undeposited-cash flag
+  are computed live, entirely offline.
 - **ጥገና (Repairs)** — track damaged items from report through resolution
   and cost.
 - **መዋጮ (Contributions)** — track leader contribution rounds: expected
@@ -72,10 +75,19 @@ records; skip it and it runs entirely offline/local, same as before.
     rather than duplicates.
   - **ወደ መጀመሪያው ዕቅድ መልስ** wipes edits and restores the exact docx-derived
     plan.
-  - **🖨 Generate report** (admin-only when Supabase is connected; open
-    to whoever's on the device in offline-only mode) opens a printable
-    period summary — totals, plan-item completion counts, and status —
-    that can be saved as a PDF via the browser's print dialog.
+  - **🖨 Generate report** (print/PDF) and **📊 Generate PowerPoint** — both
+    admin-only when Supabase is connected (open to whoever's on the device
+    in offline-only mode). Pick 3/6/12 months, then either button builds
+    from the same live numbers: overall totals (income — including
+    መዋጮ collected — expense, balance), asset count, repair status, and a
+    per-plan-item completion table, chunked across slides so it stays
+    readable. The .pptx downloads straight to the phone/device, built
+    entirely client-side with PptxGenJS (no server). To make someone an
+    admin: edit their row in Supabase's `user_roles` table
+    (`update user_roles set role = 'admin' where user_id = '...'`).
+    Text uses the **Nyala** font for Ethiopic-script rendering — widely
+    available on Windows; if a viewer's device lacks it, PowerPoint/
+    Keynote will substitute a fallback font automatically.
 
 ## Files
 - `index.html` — app shell, ledger-inspired dark green/brass styling

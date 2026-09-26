@@ -1,6 +1,6 @@
 /* sw.js — bump CACHE whenever you redeploy changed files so phones pick
  * up the update (old cache is dropped in activate). */
-const CACHE = 'neberet-kefel-v3';
+const CACHE = 'neberet-kefel-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -15,6 +15,7 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  'https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
 ];
 
