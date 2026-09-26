@@ -710,11 +710,36 @@
   }
 
   // ---------- boot ----------
+  function showBootError(msg) {
+    app.innerHTML = '';
+    app.appendChild(el('div', { class: 'panel' }, [
+      el('h2', {}, ['⚠️ Could not start']),
+      el('p', {}, [msg]),
+      el('p', { class: 'muted' }, [
+        "If you opened this file directly (file://...), that's usually why: " +
+        'the local database this app needs is blocked on that origin in most ' +
+        'mobile browsers. Serve it over http(s) instead \u2014 deploy to GitHub ' +
+        'Pages, or run a quick local server and open it via http://localhost/...',
+      ]),
+    ]));
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
-    await window.NKDB.open();
-    await seedPlanIfEmpty();
-    if (window.NKAuth) await window.NKAuth.init();
-    render();
+    try {
+      if (typeof indexedDB === 'undefined') {
+        showBootError('IndexedDB is not available on this page (origin: ' + location.origin + location.pathname + ').');
+        return;
+      }
+      await window.NKDB.open();
+      await seedPlanIfEmpty();
+      if (window.NKAuth) {
+        try { await window.NKAuth.init(); } catch (e) { console.warn('auth init failed, continuing offline', e); }
+      }
+      render();
+    } catch (err) {
+      console.error('Boot failed:', err);
+      showBootError(String(err && err.message ? err.message : err));
+    }
   });
 
   document.addEventListener('nk-lang-changed', render);
