@@ -743,7 +743,12 @@
       const status = doneInPeriod > 0 ? t('plan_status_on_track') : t('plan_status_needs_attn');
       return { no: p.no, title: p.title, timing: p.timing || '', doneInPeriod, status };
     });
-    return { months, incomeOnly, contribTotal, totalIncome, totalExpense, assetsCount: assets.length, repairsDone, repairsPending, planRows };
+    const planOnTrack = planRows.filter((p) => p.doneInPeriod > 0).length;
+    const planNeedsAttn = planRows.length - planOnTrack;
+    return {
+      months, incomeOnly, contribTotal, totalIncome, totalExpense, assetsCount: assets.length,
+      repairsDone, repairsPending, planRows, planOnTrack, planNeedsAttn,
+    };
   }
 
   async function generateReport(months) {
@@ -814,29 +819,63 @@
       x: 0.5, y: 3.2, w: 9, h: 0.5, fontFace: PPTX_FONT, fontSize: 12, color: 'CFC6AC', align: 'center',
     });
 
-    // ---- Slide 2: overview stats ----
+    // ---- Slide 2: financial overview (bar chart) ----
     slide = pptx.addSlide();
     slide.background = { color: INK };
-    slide.addText(t('nav_dashboard'), { x: 0.4, y: 0.3, w: 9, h: 0.6, fontFace: PPTX_FONT, fontSize: 22, bold: true, color: BRASS });
-    const stats = [
-      [t('total_income'), fmtMoney(d.totalIncome), `${t('income')} ${fmtMoney(d.incomeOnly)} + ${t('nav_contrib')} ${fmtMoney(d.contribTotal)}`],
-      [t('total_expense'), fmtMoney(d.totalExpense), ''],
-      [t('balance'), fmtMoney(d.totalIncome - d.totalExpense), ''],
-      [t('nav_assets'), String(d.assetsCount), ''],
-      [t('pending_repairs'), String(d.repairsPending), `${t('repair_status_done')}: ${d.repairsDone}`],
-    ];
-    let sy = 1.15;
-    stats.forEach(([label, value, sub]) => {
-      slide.addText([
-        { text: label + ':  ', options: { fontFace: PPTX_FONT, fontSize: 14, color: PARCHMENT, bold: true } },
-        { text: value, options: { fontFace: PPTX_FONT, fontSize: 14, color: BRASS, bold: true } },
-      ], { x: 0.5, y: sy, w: 9, h: 0.4 });
-      if (sub) {
-        slide.addText(sub, { x: 0.7, y: sy + 0.32, w: 9, h: 0.3, fontFace: PPTX_FONT, fontSize: 10, color: 'CFC6AC' });
-        sy += 0.75;
-      } else {
-        sy += 0.55;
-      }
+    slide.addText(t('nav_dashboard'), { x: 0.4, y: 0.3, w: 9, h: 0.5, fontFace: PPTX_FONT, fontSize: 22, bold: true, color: BRASS });
+
+    const balance = d.totalIncome - d.totalExpense;
+    slide.addChart(pptx.ChartType.bar, [{
+      name: t('total_income'),
+      labels: [t('income'), t('nav_contrib'), t('total_expense'), t('balance')],
+      values: [d.incomeOnly, d.contribTotal, d.totalExpense, balance],
+    }], {
+      x: 0.4, y: 0.9, w: 9.2, h: 3.3,
+      chartColors: [BRASS, '8A6D34', 'B5563C', '6FA287'],
+      showLegend: false,
+      showValue: true,
+      dataLabelColor: PARCHMENT, dataLabelFontFace: PPTX_FONT, dataLabelFontSize: 11,
+      catAxisLabelColor: PARCHMENT, catAxisLabelFontFace: PPTX_FONT, catAxisLabelFontSize: 12,
+      valAxisLabelColor: 'CFC6AC', valAxisLabelFontFace: PPTX_FONT, valAxisHidden: true,
+      catAxisLineColor: '35473E', valGridLine: { color: '2A3B33' },
+      plotArea: { fill: { color: INK } },
+      chartArea: { fill: { color: INK } },
+    });
+    slide.addText([
+      { text: `${t('nav_assets')}: `, options: { fontFace: PPTX_FONT, fontSize: 13, color: PARCHMENT, bold: true } },
+      { text: `${d.assetsCount}    `, options: { fontFace: PPTX_FONT, fontSize: 13, color: BRASS, bold: true } },
+      { text: `${t('pending_repairs')}: `, options: { fontFace: PPTX_FONT, fontSize: 13, color: PARCHMENT, bold: true } },
+      { text: `${d.repairsPending} (${t('repair_status_done')}: ${d.repairsDone})`, options: { fontFace: PPTX_FONT, fontSize: 13, color: BRASS, bold: true } },
+    ], { x: 0.4, y: 4.35, w: 9.2, h: 0.5 });
+
+    // ---- Slide 3: status overview (doughnut charts) ----
+    slide = pptx.addSlide();
+    slide.background = { color: INK };
+    slide.addText(t('nav_plan') + ' — ' + t('nav_dashboard'), { x: 0.4, y: 0.3, w: 9, h: 0.5, fontFace: PPTX_FONT, fontSize: 22, bold: true, color: BRASS });
+
+    slide.addChart(pptx.ChartType.doughnut, [{
+      name: t('nav_plan'),
+      labels: [t('plan_status_on_track'), t('plan_status_needs_attn')],
+      values: [d.planOnTrack, d.planNeedsAttn],
+    }], {
+      x: 0.3, y: 1.0, w: 4.4, h: 3.6,
+      chartColors: ['6FA287', 'B5563C'],
+      showLegend: true, legendPos: 'b', legendColor: PARCHMENT, legendFontFace: PPTX_FONT, legendFontSize: 11,
+      showPercent: true, dataLabelColor: INK, dataLabelFontFace: PPTX_FONT, dataLabelFontSize: 11,
+      title: t('nav_plan'), showTitle: true, titleColor: PARCHMENT, titleFontFace: PPTX_FONT, titleFontSize: 13,
+      chartArea: { fill: { color: INK } },
+    });
+    slide.addChart(pptx.ChartType.doughnut, [{
+      name: t('nav_repairs'),
+      labels: [t('repair_status_done'), t('pending_repairs')],
+      values: [d.repairsDone, d.repairsPending],
+    }], {
+      x: 5.0, y: 1.0, w: 4.4, h: 3.6,
+      chartColors: ['6FA287', 'D3A24A'],
+      showLegend: true, legendPos: 'b', legendColor: PARCHMENT, legendFontFace: PPTX_FONT, legendFontSize: 11,
+      showPercent: true, dataLabelColor: INK, dataLabelFontFace: PPTX_FONT, dataLabelFontSize: 11,
+      title: t('nav_repairs'), showTitle: true, titleColor: PARCHMENT, titleFontFace: PPTX_FONT, titleFontSize: 13,
+      chartArea: { fill: { color: INK } },
     });
 
     // ---- Plan status slides (chunked so rows stay readable) ----

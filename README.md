@@ -77,9 +77,13 @@ records; skip it and it runs entirely offline/local, same as before.
     plan.
   - **🖨 Generate report** (print/PDF) and **📊 Generate PowerPoint** — both
     admin-only when Supabase is connected (open to whoever's on the device
-    in offline-only mode). Pick 3/6/12 months, then either button builds
-    from the same live numbers: overall totals (income — including
-    መዋጮ collected — expense, balance), asset count, repair status, and a
+    in offline-only mode). Both only count records **dated inside the
+    selected 3/6/12-month window** — that's intentional (a "last quarter"
+    report shouldn't include five-year-old entries), but it means a
+    record dated outside that window shows as 0 in the report even
+    though it's still there on its own tab. The PowerPoint version builds
+    a bar chart (income/መዋጮ/expense/balance) and two doughnut charts
+    (plan on-track vs needs-attention, repairs done vs pending), then a
     per-plan-item completion table, chunked across slides so it stays
     readable. The .pptx downloads straight to the phone/device, built
     entirely client-side with PptxGenJS (no server). To make someone an
