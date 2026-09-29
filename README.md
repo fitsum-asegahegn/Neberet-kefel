@@ -36,6 +36,11 @@ records; skip it and it runs entirely offline/local, same as before.
    delete records or run the report generator.
 6. Don't want the cloud at all? Leave `config.js` blank — Settings tab
    shows "Skip — offline only" and the app just runs local.
+7. **When Supabase is connected**, the app now shows a full-screen
+   sign-in/sign-up gate before anything else — the person must sign in
+   or explicitly tap "Skip — offline only" before the dashboard and
+   tabs appear. With `config.js` left blank, there's nothing to gate
+   and the app boots straight to the dashboard as before.
 
 ## Modules
 - **ንብረት (Assets)** — register every asset (code, source, status,

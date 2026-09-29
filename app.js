@@ -955,6 +955,13 @@
       await seedPlanIfEmpty();
       if (window.NKAuth) {
         try { await window.NKAuth.init(); } catch (e) { console.warn('auth init failed, continuing offline', e); }
+        if (window.NKAuth.needsAuthGate && window.NKAuth.needsAuthGate()) {
+          document.getElementById('tabbar').innerHTML = '';
+          app.innerHTML = '';
+          app.appendChild(window.NKAuth.renderAuthGate(el));
+          window.I18N.applyStaticTranslations(app);
+          return;
+        }
       }
       render();
     } catch (err) {

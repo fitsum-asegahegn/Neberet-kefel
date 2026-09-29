@@ -105,6 +105,56 @@
     localStorage.setItem('nk_offline_only', v ? '1' : '0');
   }
 
+  function needsAuthGate() {
+    return configured() && !session && !offlineOnly;
+  }
+
+  // Shared email/password sign-in+sign-up block, used by both the
+  // full-screen gate and the Settings panel's not-signed-in state.
+  function buildCredentialsForm(el, { showSkip }) {
+    const wrap = el('div', {});
+    const emailInput = el('input', { type: 'email', placeholder: t('email'), autocomplete: 'email' });
+    const passInput = el('input', { type: 'password', placeholder: t('password'), autocomplete: 'current-password' });
+    const status = el('p', { class: 'error-text' });
+    wrap.appendChild(el('div', { class: 'form-row' }, [el('label', {}, [t('email')]), emailInput]));
+    wrap.appendChild(el('div', { class: 'form-row' }, [el('label', {}, [t('password')]), passInput]));
+    wrap.appendChild(el('div', { class: 'form-actions' }, [
+      el('button', {
+        type: 'button', class: 'btn primary', onclick: async () => {
+          try { await signIn(emailInput.value, passInput.value); window.location.reload(); }
+          catch (e) { status.textContent = e.message; }
+        },
+      }, [t('settings_sign_in')]),
+      el('button', {
+        type: 'button', class: 'btn ghost', onclick: async () => {
+          try { await signUp(emailInput.value, passInput.value); window.location.reload(); }
+          catch (e) { status.textContent = e.message; }
+        },
+      }, [t('settings_sign_up')]),
+    ]));
+    wrap.appendChild(status);
+    if (showSkip) {
+      wrap.appendChild(el('button', {
+        class: 'btn ghost', style: 'margin-top:10px;width:100%',
+        onclick: () => { setOfflineOnly(true); window.location.reload(); },
+      }, [t('settings_offline_only')]));
+    }
+    return wrap;
+  }
+
+  // Full-screen sign-in/sign-up gate, shown before the app renders when
+  // Supabase is configured and nobody has signed in or chosen offline-only.
+  function renderAuthGate(el) {
+    const screen = el('div', { class: 'auth-gate' });
+    const card = el('div', { class: 'auth-gate-card' }, [
+      el('h1', {}, [t('app_title')]),
+      el('p', { class: 'muted', style: 'margin-bottom:16px' }, [t('settings_sign_in') + ' / ' + t('settings_sign_up')]),
+    ]);
+    card.appendChild(buildCredentialsForm(el, { showSkip: true }));
+    screen.appendChild(card);
+    return screen;
+  }
+
   // ---------- settings UI ----------
   async function renderSettingsPanel(el) {
     const wrap = el('div', { class: 'auth-panel' });
@@ -140,32 +190,11 @@
       return wrap;
     }
 
-    // sign-in / sign-up form
-    const emailInput = el('input', { type: 'email', placeholder: t('email') });
-    const passInput = el('input', { type: 'password', placeholder: t('password') });
-    const status = el('p', { class: 'error-text' });
-    wrap.appendChild(el('div', { class: 'form-row' }, [el('label', {}, [t('email')]), emailInput]));
-    wrap.appendChild(el('div', { class: 'form-row' }, [el('label', {}, [t('password')]), passInput]));
-    wrap.appendChild(el('div', { class: 'form-actions' }, [
-      el('button', {
-        type: 'button', class: 'btn primary', onclick: async () => {
-          try { await signIn(emailInput.value, passInput.value); window.location.reload(); }
-          catch (e) { status.textContent = e.message; }
-        },
-      }, [t('settings_sign_in')]),
-      el('button', {
-        type: 'button', class: 'btn ghost', onclick: async () => {
-          try { await signUp(emailInput.value, passInput.value); window.location.reload(); }
-          catch (e) { status.textContent = e.message; }
-        },
-      }, [t('settings_sign_up')]),
-    ]));
-    wrap.appendChild(status);
-    wrap.appendChild(el('button', { class: 'btn ghost', onclick: () => { setOfflineOnly(true); render_reload(); } }, [t('settings_offline_only')]));
+    // Not signed in and not offline-only shouldn't normally be reachable here
+    // (the gate catches it first), but handled for completeness.
+    wrap.appendChild(buildCredentialsForm(el, { showSkip: true }));
     return wrap;
-
-    function render_reload() { window.location.reload(); }
   }
 
-  global.NKAuth = { init, isAdmin, signIn, signUp, signOut, sync, saveDisplayName, renderSettingsPanel, configured };
+  global.NKAuth = { init, isAdmin, signIn, signUp, signOut, sync, saveDisplayName, renderSettingsPanel, renderAuthGate, needsAuthGate, configured };
 })(window);

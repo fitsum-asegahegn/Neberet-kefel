@@ -20,15 +20,15 @@
     'መስከረም': 0,
     'ጥቅምት': 1, 'ጥቀምት': 1,
     'ኅዳር': 2, 'ህዳር': 2, 'ሕዳር': 2,
-    'ታኅሳስ': 3, 'ታህሳስ': 3, 'ታሕሳስ': 3,
+    'ታኅሳስ': 3, 'ታህሳስ': 3, 'ታሕሳስ': 3, 'ታሀሳስ': 3,
     'ጥር': 4,
     'የካቲት': 5,
     'መጋቢት': 6,
     'ሚያዝያ': 7,
     'ግንቦት': 8,
     'ሰኔ': 9,
-    'ሐምሌ': 10, 'ሃምሌ': 10,
-    'ነሐሴ': 11, 'ነሃሴ': 11,
+    'ሐምሌ': 10, 'ሃምሌ': 10, 'ሀምሌ': 10,
+    'ነሐሴ': 11, 'ነሃሴ': 11, 'ነሀሴ': 11,
     'ጳጉሜ': 12, 'ጳጉሜን': 12
   };
 
@@ -120,8 +120,8 @@
         found.add(SPELLING_MAP[tok]);
       }
     }
-    // "ከመስከረም እስከ ነሐሴ" style range -> expand to every month in between
-    const rangeMatch = text.match(/ከ\s*([\u1200-\u137F]+)\s*እስከ\s*([\u1200-\u137F]+)/);
+    // "ከመስከረም እስከ ነሐሴ" or "ከመስከረም-ነሀሴ" style range -> expand to every month in between
+    const rangeMatch = text.match(/ከ\s*([\u1200-\u137F]+)\s*(?:እስከ|-)\s*([\u1200-\u137F]+)/);
     if (rangeMatch) {
       const a = SPELLING_MAP[rangeMatch[1]];
       const b = SPELLING_MAP[rangeMatch[2]];
