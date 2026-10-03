@@ -144,6 +144,15 @@
     password: { am: 'የይለፍ ቃል', en: 'Password' },
 
     unauthorized: { am: 'ይህን ለማድረግ ፈቃድ የለዎትም', en: 'You are not authorized to do this' },
+
+    reminders_title: { am: '🔔 የአካባቢ ማሳሰቢያዎች', en: '🔔 Local reminders' },
+    reminders_enable: { am: 'አብራ', en: 'Enable' },
+    reminders_disable: { am: 'አጥፋ', en: 'Disable' },
+    reminders_explain: { am: 'መተግበሪያው ክፍት ሆኖ በዚህ መሳሪያ ላይ ብቻ ይሰራል — መተግበሪያው ተዘግቶ ባለበት ጊዜ ማንቂያ መላክ አይችልም (እውነተኛ push አይደለም)። በቀን አንዴ ይጣራል።', en: "Works only while the app is open on this device — it can't wake the app when it's closed (not real push). Checked at most once a day." },
+    reminders_check_now: { am: '🔔 አሁን አረጋግጥ', en: '🔔 Check now' },
+    reminders_permission_denied: { am: 'ፈቃድ ተከልክሏል — ከስልኩ ቅንብር ውስጥ ለዚህ ገጽ ማንቂያ ፈቃድ ይስጡ', en: 'Permission denied — enable notifications for this site in your device settings' },
+    reminders_unsupported: { am: 'ይህ መሳሪያ/አሳሽ ማሳሰቢያዎችን አይደግፍም', en: 'Notifications are not supported on this device/browser' },
+    reminders_nothing: { am: 'ምንም የሚያሳስብ ነገር የለም', en: 'Nothing to flag right now' },
   };
 
   let currentLang = localStorage.getItem('nk_lang') ||

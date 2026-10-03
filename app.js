@@ -544,6 +544,9 @@
 
   async function renderPlan() {
     await seedPlanIfEmpty();
+    if (window.NKAuth && window.NKAuth.refreshProfile) {
+      try { await window.NKAuth.refreshProfile(); } catch (e) { /* offline or not signed in — ignore */ }
+    }
     const wrap = el('div', { class: 'panel' });
     wrap.appendChild(el('div', { class: 'panel-header' }, [
       el('h2', {}, [t('nav_plan')]),
@@ -909,6 +912,49 @@
     await pptx.writeFile({ fileName: `neberet-kefel-report-${months}m-${todayIso()}.pptx` });
   }
 
+  // ---------- local reminders panel ----------
+  function renderRemindersPanel() {
+    const R = window.NKReminders;
+    const wrap = el('div', { class: 'auth-panel' });
+    wrap.appendChild(el('h3', {}, [t('reminders_title')]));
+    wrap.appendChild(el('p', { class: 'muted' }, [t('reminders_explain')]));
+
+    const perm = R.permissionState();
+    const status = el('p', { class: perm === 'denied' ? 'error-text' : 'muted' });
+    if (perm === 'unsupported') status.textContent = t('reminders_unsupported');
+    else if (perm === 'denied') status.textContent = t('reminders_permission_denied');
+    wrap.appendChild(status);
+
+    if (perm !== 'unsupported' && perm !== 'denied') {
+      const enabled = R.isEnabled();
+      const toggleBtn = el('button', {
+        class: 'btn ' + (enabled ? 'primary' : 'ghost'),
+        onclick: async () => {
+          if (!enabled) {
+            const res = await R.requestPermission();
+            if (res === 'granted') { R.setEnabled(true); await R.checkAndNotify(true); }
+          } else {
+            R.setEnabled(false);
+          }
+          render();
+        },
+      }, [enabled ? t('reminders_disable') : t('reminders_enable')]);
+      wrap.appendChild(toggleBtn);
+
+      if (enabled) {
+        const checkBtn = el('button', {
+          class: 'btn ghost', style: 'margin-left:8px',
+          onclick: async () => {
+            const res = await R.checkAndNotify(true);
+            if (!res.fired) alert(t('reminders_nothing'));
+          },
+        }, [t('reminders_check_now')]);
+        wrap.appendChild(checkBtn);
+      }
+    }
+    return wrap;
+  }
+
   // ---------- settings ----------
   async function renderSettings() {
     const wrap = el('div', { class: 'panel' });
@@ -922,6 +968,10 @@
       ]),
     ]);
     wrap.appendChild(langRow);
+
+    if (window.NKReminders) {
+      wrap.appendChild(renderRemindersPanel());
+    }
 
     if (window.NKAuth) {
       wrap.appendChild(await window.NKAuth.renderSettingsPanel(el));
@@ -964,6 +1014,9 @@
         }
       }
       render();
+      if (window.NKReminders) {
+        window.NKReminders.checkAndNotify(false).catch((e) => console.warn('reminders check failed', e));
+      }
     } catch (err) {
       console.error('Boot failed:', err);
       showBootError(String(err && err.message ? err.message : err));

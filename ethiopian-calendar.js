@@ -24,7 +24,7 @@
     'ጥር': 4,
     'የካቲት': 5,
     'መጋቢት': 6,
-    'ሚያዝያ': 7,
+    'ሚያዝያ': 7, 'ሚያዚያ': 7, 'መያዝያ': 7,
     'ግንቦት': 8,
     'ሰኔ': 9,
     'ሐምሌ': 10, 'ሃምሌ': 10, 'ሀምሌ': 10,
@@ -120,8 +120,8 @@
         found.add(SPELLING_MAP[tok]);
       }
     }
-    // "ከመስከረም እስከ ነሐሴ" or "ከመስከረም-ነሀሴ" style range -> expand to every month in between
-    const rangeMatch = text.match(/ከ\s*([\u1200-\u137F]+)\s*(?:እስከ|-)\s*([\u1200-\u137F]+)/);
+    // "ከመስከረም እስከ ነሐሴ" / "ከመስከረም-ነሀሴ" / "መስከረም-ታህሳስ" (ከ is optional) -> expand to every month in between
+    const rangeMatch = text.match(/(?:ከ\s*)?([\u1200-\u137F]+)\s*(?:እስከ|-)\s*([\u1200-\u137F]+)/);
     if (rangeMatch) {
       const a = SPELLING_MAP[rangeMatch[1]];
       const b = SPELLING_MAP[rangeMatch[2]];
@@ -169,9 +169,9 @@
       const n = parseInt(t.match(/(\d+)\s*ጊዜ/)[1], 10);
       if (n > 0) return Math.round(365 / n);
     }
-    if (/ሩብ\s*ዓመት|quarterly/i.test(t)) return 91;
-    if (/ስድስት\s*ወር|ግማሽ\s*ዓመት/.test(t)) return 182;
-    if (/ዓመታዊ|ዓመቱን\s*ሙሉ|annual/i.test(t)) return 365;
+    if (/ሩብ\s*[ዓአ]መት|quarterly/i.test(t)) return 91;
+    if (/ስድስት\s*ወር|ግማሽ\s*[ዓአ]መት/.test(t)) return 182;
+    if (/[ዓአ]መታዊ|[ዓአ]መቱን\s*ሙሉ|annual/i.test(t)) return 365;
     // እንደአስፈላጊነቱ / እንደተቀላቀሉ ወዲያውኑ / unspecified -> no fixed cadence
     return null;
   }
