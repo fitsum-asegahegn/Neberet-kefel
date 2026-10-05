@@ -14,6 +14,7 @@
   let supabase = null;
   let session = null;
   let role = 'member';
+  let approvalStatus = 'approved'; // safe default: unmigrated DBs and offline mode both act as if approved
   let displayName = '';
   let offlineOnly = localStorage.getItem('nk_offline_only') === '1';
 
@@ -23,7 +24,19 @@
 
   function isAdmin() {
     if (!configured() || offlineOnly || !session) return true; // no shared team to restrict
-    return role === 'admin';
+    return role === 'admin' && approvalStatus === 'approved';
+  }
+
+  // Pending/rejected only mean anything once someone is actually signed in
+  // against a configured, non-offline-only backend.
+  function isPending() {
+    if (!configured() || offlineOnly || !session) return false;
+    return approvalStatus === 'pending';
+  }
+
+  function isRejected() {
+    if (!configured() || offlineOnly || !session) return false;
+    return approvalStatus === 'rejected';
   }
 
   async function init() {
@@ -38,8 +51,11 @@
   async function loadProfile() {
     try {
       const uid = session.user.id;
-      const { data: roleRow } = await supabase.from('user_roles').select('role').eq('user_id', uid).maybeSingle();
+      const { data: roleRow } = await supabase.from('user_roles').select('role,status').eq('user_id', uid).maybeSingle();
       role = (roleRow && roleRow.role) || 'member';
+      // roleRow.status is undefined on a DB that hasn't run the approval-workflow
+      // migration yet — treat that the same as 'approved' so nothing breaks.
+      approvalStatus = (roleRow && roleRow.status) || 'approved';
       const { data: profRow } = await supabase.from('profiles').select('display_name').eq('user_id', uid).maybeSingle();
       displayName = (profRow && profRow.display_name) || (session.user.email || '').split('@')[0];
     } catch (e) { console.warn('profile load failed', e); }
@@ -166,6 +182,112 @@
     return screen;
   }
 
+  // Full-screen "awaiting approval" / "rejected" gate — shown instead of
+  // the main app once someone is signed in but an admin hasn't approved
+  // them yet (or has rejected them).
+  function renderApprovalGate(el) {
+    const screen = el('div', { class: 'auth-gate' });
+    const rejected = approvalStatus === 'rejected';
+    const card = el('div', { class: 'auth-gate-card' }, [
+      el('h1', {}, [t('app_title')]),
+      el('p', { style: 'text-align:center;margin-bottom:6px' }, [rejected ? t('approval_rejected_title') : t('approval_pending_title')]),
+      el('p', { class: 'muted', style: 'text-align:center;margin-bottom:16px' }, [session && session.user ? session.user.email : '']),
+    ]);
+    const actions = el('div', { class: 'form-actions', style: 'justify-content:center;flex-wrap:wrap' });
+    if (!rejected) {
+      actions.appendChild(el('button', {
+        type: 'button', class: 'btn primary',
+        onclick: async () => { await loadProfile(); window.location.reload(); },
+      }, [t('approval_refresh')]));
+    }
+    actions.appendChild(el('button', {
+      type: 'button', class: 'btn ghost',
+      onclick: async () => { await signOut(); window.location.reload(); },
+    }, [t('settings_sign_out')]));
+    card.appendChild(actions);
+    screen.appendChild(card);
+    return screen;
+  }
+
+  // ---------- admin: approve / assign roles ----------
+  async function fetchAllUsers() {
+    const [{ data: profiles }, { data: roles }] = await Promise.all([
+      supabase.from('profiles').select('user_id,display_name,email'),
+      supabase.from('user_roles').select('user_id,role,status'),
+    ]);
+    const byId = {};
+    (profiles || []).forEach((p) => { byId[p.user_id] = { ...byId[p.user_id], ...p }; });
+    (roles || []).forEach((r) => { byId[r.user_id] = { ...byId[r.user_id], ...r }; });
+    return Object.values(byId).sort((a, b) => {
+      const order = { pending: 0, approved: 1, rejected: 2 };
+      return (order[a.status] ?? 1) - (order[b.status] ?? 1);
+    });
+  }
+
+  async function setUserRoleStatus(userId, newRole, newStatus) {
+    const { error } = await supabase.from('user_roles').update({ role: newRole, status: newStatus }).eq('user_id', userId);
+    if (error) throw error;
+  }
+
+  async function renderUsersPanel(el) {
+    const wrap = el('div', { class: 'auth-panel' });
+    wrap.appendChild(el('h3', {}, [t('users_title')]));
+    const listHost = el('div');
+    wrap.appendChild(listHost);
+
+    async function renderList() {
+      listHost.innerHTML = '';
+      let users;
+      try { users = await fetchAllUsers(); } catch (e) {
+        listHost.appendChild(el('p', { class: 'error-text' }, [String(e.message || e)]));
+        return;
+      }
+      if (!users.length) {
+        listHost.appendChild(el('p', { class: 'empty' }, [t('no_records')]));
+        return;
+      }
+      users.forEach((u) => listHost.appendChild(renderUserRow(u)));
+    }
+
+    function renderUserRow(u) {
+      const isSelf = session && session.user && session.user.id === u.user_id;
+      const row = el('div', { class: 'user-row' });
+      const statusClass = u.status === 'pending' ? 'warn' : u.status === 'rejected' ? 'danger' : 'good';
+      row.appendChild(el('div', { class: 'user-row-head' }, [
+        el('strong', {}, [u.email || u.display_name || u.user_id]),
+        el('span', { class: 'user-badge ' + statusClass }, [t('status_' + (u.status || 'approved'))]),
+      ]));
+      row.appendChild(el('div', { class: 'muted' }, [
+        `${t('users_role')}: ${t(u.role === 'admin' ? 'users_role_admin' : 'users_role_member')}` + (isSelf ? ` (${t('users_you')})` : ''),
+      ]));
+
+      const actions = el('div', { class: 'followup-actions', style: 'margin-top:6px' });
+      if (u.status === 'pending') {
+        actions.appendChild(el('button', { class: 'btn small primary', onclick: () => act(u, 'member', 'approved') }, [t('users_approve_member')]));
+        actions.appendChild(el('button', { class: 'btn small primary', onclick: () => act(u, 'admin', 'approved') }, [t('users_approve_admin')]));
+        actions.appendChild(el('button', { class: 'btn small ghost', onclick: () => act(u, u.role || 'member', 'rejected') }, [t('users_reject')]));
+      } else if (u.status === 'approved') {
+        if (u.role !== 'admin') actions.appendChild(el('button', { class: 'btn small ghost', onclick: () => act(u, 'admin', 'approved') }, [t('users_make_admin')]));
+        if (u.role === 'admin') actions.appendChild(el('button', { class: 'btn small ghost', onclick: () => act(u, 'member', 'approved') }, [t('users_make_member')]));
+        actions.appendChild(el('button', { class: 'btn small ghost', onclick: () => act(u, u.role || 'member', 'rejected') }, [t('users_revoke')]));
+      } else {
+        actions.appendChild(el('button', { class: 'btn small primary', onclick: () => act(u, 'member', 'approved') }, [t('users_reapprove')]));
+      }
+      row.appendChild(actions);
+      return row;
+    }
+
+    async function act(u, newRole, newStatus) {
+      try {
+        await setUserRoleStatus(u.user_id, newRole, newStatus);
+        await renderList();
+      } catch (e) { alert(String(e.message || e)); }
+    }
+
+    await renderList();
+    return wrap;
+  }
+
   // ---------- settings UI ----------
   async function renderSettingsPanel(el) {
     const wrap = el('div', { class: 'auth-panel' });
@@ -198,6 +320,7 @@
         },
       }, [t('settings_sync_now')]));
       wrap.appendChild(el('button', { class: 'btn ghost', onclick: async () => { await signOut(); window.location.reload(); } }, [t('settings_sign_out')]));
+      if (isAdmin()) wrap.appendChild(await renderUsersPanel(el));
       return wrap;
     }
 
@@ -207,5 +330,8 @@
     return wrap;
   }
 
-  global.NKAuth = { init, isAdmin, signIn, signUp, signOut, sync, saveDisplayName, refreshProfile, renderSettingsPanel, renderAuthGate, needsAuthGate, configured };
+  global.NKAuth = {
+    init, isAdmin, isPending, isRejected, signIn, signUp, signOut, sync, saveDisplayName, refreshProfile,
+    renderSettingsPanel, renderAuthGate, renderApprovalGate, needsAuthGate, configured,
+  };
 })(window);

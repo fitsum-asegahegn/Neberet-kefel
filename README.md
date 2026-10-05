@@ -149,3 +149,37 @@ their session is remembered on that device, no button needed. True
 "nobody needs an account" offline mode is still available, but only as
 a deploy-time choice: leave `config.js` blank and the app never shows a
 sign-in screen at all.
+
+
+## Admin-approval sign-up workflow
+New sign-ups no longer get in automatically. The flow now:
+1. Someone signs up → they land on a **"waiting for admin approval"**
+   screen (with a "Check again" button and a sign-out button) instead of
+   the app. Behind the scenes their `user_roles` row is created with
+   `status = 'pending'`.
+2. An admin opens **Settings → 👤 Users**, sees them listed as Pending,
+   and taps **✅ Approve as member** or **👑 Approve as admin** (or
+   **🚫 Reject**). This sets their role and status in one action.
+3. The waiting person taps **🔄 Check again** (or just reopens the app)
+   and they're in, with whatever role the admin assigned.
+
+Admins can also revisit anyone later from the same Users list — promote
+a member to admin, demote an admin back to member, or revoke an
+already-approved person's access entirely.
+
+**This is enforced at the database level, not just in the app's UI** —
+the Supabase RLS policies now require `status = 'approved'` to read or
+write any of the shared data tables, so a pending or rejected account
+can't get in by skipping the screen either (e.g. via direct API calls).
+
+**Run the updated `supabase-schema.sql` again** to pick this up — every
+statement is safe to re-run, and existing already-approved accounts
+stay approved (the new `status` column defaults to `'approved'` for
+rows that already exist; only brand-new sign-ups start `'pending'`).
+The very first admin still has to be set from the SQL editor, same as
+before — nobody has admin rights yet for the in-app Users screen to
+work with until that one bootstrap step:
+```sql
+update user_roles set role = 'admin', status = 'approved' where user_id = '...';
+```
+After that, that admin can approve everyone else from inside the app.
